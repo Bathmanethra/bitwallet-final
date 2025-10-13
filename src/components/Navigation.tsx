@@ -9,10 +9,9 @@ export const Navigation = () => {
 
   const navItems = [
     { name: "Home", path: "/" },
-    { name: "Network", path: "/network" },
     { name: "Log Scale", path: "/log-scale" },
     { name: "Prediction", path: "/prediction" },
-    { name: "Sankey Flow", path: "/flows" },
+    { name: "Flow Network", path: "/flows" },
     { name: "About", path: "/about" },
     { name: "Contact", path: "/contact" },
   ];
