@@ -8,6 +8,7 @@ interface NetworkGraphProps {
   selectedWallet: string | null;
   onWalletClick: (walletId: string) => void;
   animationEnabled: boolean;
+  suspiciousWallets?: Set<string>;
 }
 
 export const NetworkGraph = ({
@@ -16,6 +17,7 @@ export const NetworkGraph = ({
   selectedWallet,
   onWalletClick,
   animationEnabled,
+  suspiciousWallets = new Set(),
 }: NetworkGraphProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1200, height: 700 });
@@ -111,7 +113,11 @@ export const NetworkGraph = ({
       const gradient = defs.append("radialGradient")
         .attr("id", `gradient-${wallet.id}`);
       
-      const color = wallet.netBalance > 0 
+      // Highlight suspicious wallets with red/orange gradient
+      const isSuspicious = suspiciousWallets.has(wallet.id);
+      const color = isSuspicious
+        ? "hsl(0, 85%, 60%)"  // Red for suspicious
+        : wallet.netBalance > 0 
         ? "hsl(25, 95%, 53%)" 
         : wallet.netBalance < 0 
         ? "hsl(0, 70%, 50%)" 
@@ -120,19 +126,22 @@ export const NetworkGraph = ({
       gradient.append("stop")
         .attr("offset", "0%")
         .attr("stop-color", color)
-        .attr("stop-opacity", 0.9);
+        .attr("stop-opacity", isSuspicious ? 1 : 0.9);
       
       gradient.append("stop")
         .attr("offset", "100%")
         .attr("stop-color", color)
-        .attr("stop-opacity", 0.4);
+        .attr("stop-opacity", isSuspicious ? 0.6 : 0.4);
     });
 
     nodes.append("circle")
-      .attr("r", (d) => Math.min(6 + d.transactionCount * 0.3, 20))
+      .attr("r", (d) => {
+        const baseRadius = Math.min(6 + d.transactionCount * 0.3, 20);
+        return suspiciousWallets.has(d.id) ? baseRadius + 3 : baseRadius;
+      })
       .attr("fill", (d) => `url(#gradient-${d.id})`)
-      .attr("stroke", "hsl(25, 95%, 53%)")
-      .attr("stroke-width", 2)
+      .attr("stroke", (d) => suspiciousWallets.has(d.id) ? "hsl(0, 85%, 60%)" : "hsl(25, 95%, 53%)")
+      .attr("stroke-width", (d) => suspiciousWallets.has(d.id) ? 3 : 2)
       .attr("opacity", (d) => {
         if (!selectedWallet) return 1;
         if (d.id === selectedWallet) return 1;
@@ -146,6 +155,7 @@ export const NetworkGraph = ({
       })
       .style("filter", (d) => {
         if (d.id === selectedWallet) return "drop-shadow(0 0 15px hsl(25, 95%, 53%))";
+        if (suspiciousWallets.has(d.id)) return "drop-shadow(0 0 12px hsl(0, 85%, 60%))";
         return "drop-shadow(0 0 5px hsl(25, 95%, 53%, 0.5))";
       });
 
@@ -173,10 +183,12 @@ export const NetworkGraph = ({
 
     nodes
       .on("mouseover", function(event, d: Wallet) {
+        const isSuspicious = suspiciousWallets.has(d.id);
         tooltip
           .style("visibility", "visible")
           .html(`
             <div style="font-weight: bold; margin-bottom: 8px; color: hsl(25, 95%, 53%)">${d.id}</div>
+            ${isSuspicious ? '<div style="color: hsl(0, 85%, 60%); font-weight: bold; margin-bottom: 4px;">⚠️ SUSPICIOUS WALLET</div>' : ''}
             <div>Received: <span style="color: hsl(120, 100%, 50%)">${d.totalReceived.toFixed(6)}</span> BTC</div>
             <div>Sent: <span style="color: hsl(0, 70%, 50%)">${d.totalSent.toFixed(6)}</span> BTC</div>
             <div>Net: <span style="color: ${d.netBalance > 0 ? 'hsl(120, 100%, 50%)' : 'hsl(0, 70%, 50%)'}">${d.netBalance > 0 ? '+' : ''}${d.netBalance.toFixed(6)}</span> BTC</div>
@@ -280,7 +292,7 @@ export const NetworkGraph = ({
         clearTimeout(animationRef.current);
       }
     };
-  }, [wallets, transactions, selectedWallet, onWalletClick, animationEnabled, dimensions]);
+  }, [wallets, transactions, selectedWallet, onWalletClick, animationEnabled, dimensions, suspiciousWallets]);
 
   return (
     <div className="relative w-full h-full bg-card rounded-xl border border-border overflow-hidden">

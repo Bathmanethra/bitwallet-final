@@ -2,12 +2,16 @@ import { useState, useMemo } from "react";
 import { Navigation } from "@/components/Navigation";
 import { NetworkGraph } from "@/components/NetworkGraph";
 import { WalletDetailsTable } from "@/components/WalletDetailsTable";
+import { SuspiciousWalletsPanel } from "@/components/SuspiciousWalletsPanel";
+import { TemporalAnalysisChart } from "@/components/TemporalAnalysisChart";
+import { StatsCards } from "@/components/StatsCards";
 import { generateWalletData } from "@/utils/generateWalletData";
+import { analyzeSuspiciousWallets, getAnalyticsMetrics } from "@/utils/suspiciousAnalytics";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pause, Play, RotateCcw, Wallet as WalletIcon, Activity } from "lucide-react";
+import { Pause, Play, RotateCcw, Wallet as WalletIcon, Activity, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const Network = () => {
@@ -15,6 +19,7 @@ const Network = () => {
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [animationEnabled, setAnimationEnabled] = useState(true);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const [suspicionThreshold, setSuspicionThreshold] = useState(0.5);
 
   const { wallets: allWallets, transactions: allTransactions } = useMemo(
     () => generateWalletData(200),
@@ -39,8 +44,25 @@ const Network = () => {
     return transactions.reduce((sum, tx) => sum + tx.amount, 0);
   }, [transactions]);
 
+  // Suspicious wallet analysis
+  const suspiciousWallets = useMemo(() => {
+    return analyzeSuspiciousWallets(wallets, transactions, suspicionThreshold);
+  }, [wallets, transactions, suspicionThreshold]);
+
+  const suspiciousWalletIds = useMemo(() => {
+    return new Set(suspiciousWallets.map(sw => sw.wallet.id));
+  }, [suspiciousWallets]);
+
+  const analyticsMetrics = useMemo(() => {
+    return getAnalyticsMetrics(suspiciousWallets, wallets.length);
+  }, [suspiciousWallets, wallets.length]);
+
   const handleReset = () => {
     setSelectedWallet(null);
+    setResetTrigger(prev => prev + 1);
+  };
+
+  const handleRefreshAnalytics = () => {
     setResetTrigger(prev => prev + 1);
   };
 
@@ -50,32 +72,15 @@ const Network = () => {
       
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              Bitcoin <span className="text-primary">Wallet Oracle</span>
-            </h1>
-            <p className="text-muted-foreground">Advanced Network Visualization & Analytics</p>
-          </div>
-          
-          <div className="flex gap-6">
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card border border-border">
-              <WalletIcon className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Active Wallets</p>
-                <p className="text-xl font-bold text-foreground">{walletCount}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card border border-border">
-              <Activity className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Total Volume</p>
-                <p className="text-xl font-bold text-foreground">{totalVolume.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+            Bitcoin <span className="text-primary">Wallet Oracle</span>
+          </h1>
+          <p className="text-muted-foreground">Advanced Network Visualization & Suspicious Activity Analytics</p>
         </div>
+
+        {/* Stats Cards */}
+        <StatsCards metrics={analyticsMetrics} totalTransactions={transactions.length} />
 
         {/* Controls */}
         <div className="flex items-center justify-between flex-wrap gap-4 p-4 rounded-lg bg-card border border-border">
@@ -194,52 +199,70 @@ const Network = () => {
           </div>
         )}
 
-        {/* Tabs */}
-        <Tabs defaultValue="network" className="w-full">
-          <TabsList className="bg-muted">
-            <TabsTrigger value="network" className="data-[state=active]:bg-background">
-              <Activity className="w-4 h-4 mr-2" />
-              Network Graph
-            </TabsTrigger>
-            <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
-              <Activity className="w-4 h-4 mr-2" />
-              Sankey Flow
-            </TabsTrigger>
-          </TabsList>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Network Graph & Details */}
+          <div className="lg:col-span-2 space-y-6">
+            <Tabs defaultValue="network" className="w-full">
+              <TabsList className="bg-muted">
+                <TabsTrigger value="network" className="data-[state=active]:bg-background">
+                  <Activity className="w-4 h-4 mr-2" />
+                  Network Graph
+                </TabsTrigger>
+                <TabsTrigger value="temporal" className="data-[state=active]:bg-background">
+                  <Shield className="w-4 h-4 mr-2" />
+                  Temporal Analysis
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="network" className="space-y-6 mt-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Interactive Network Graph</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Click on wallets to highlight connections • Drag to reposition • Scroll to zoom • Watch animated transaction flows
-              </p>
-              <div className="h-[700px]">
-                <NetworkGraph
-                  wallets={wallets}
+              <TabsContent value="network" className="space-y-6 mt-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Interactive Network Graph</h2>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Click on wallets to highlight connections • Drag to reposition • Scroll to zoom • 🔴 Red nodes are suspicious
+                  </p>
+                  <div className="h-[600px]">
+                    <NetworkGraph
+                      wallets={wallets}
+                      transactions={transactions}
+                      selectedWallet={selectedWallet}
+                      onWalletClick={setSelectedWallet}
+                      animationEnabled={animationEnabled}
+                      suspiciousWallets={suspiciousWalletIds}
+                    />
+                  </div>
+                </div>
+
+                {selectedWallet && (
+                  <WalletDetailsTable
+                    walletId={selectedWallet}
+                    transactions={transactions}
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value="temporal" className="mt-6">
+                <TemporalAnalysisChart 
+                  wallet={selectedWalletData} 
                   transactions={transactions}
-                  selectedWallet={selectedWallet}
-                  onWalletClick={setSelectedWallet}
-                  animationEnabled={animationEnabled}
                 />
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-            {selectedWallet && (
-              <WalletDetailsTable
-                walletId={selectedWallet}
-                transactions={transactions}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="sankey" className="mt-6">
-            <Card className="bg-card border-border">
-              <CardContent className="p-8 text-center">
-                <p className="text-muted-foreground">Sankey flow diagram coming soon...</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          {/* Right: Suspicious Wallets Panel */}
+          <div className="lg:col-span-1">
+            <SuspiciousWalletsPanel
+              suspiciousWallets={suspiciousWallets}
+              threshold={suspicionThreshold}
+              onThresholdChange={setSuspicionThreshold}
+              selectedWallet={selectedWallet}
+              onSelectWallet={setSelectedWallet}
+              onClearSelection={() => setSelectedWallet(null)}
+              onRefresh={handleRefreshAnalytics}
+            />
+          </div>
+        </div>
       </main>
     </div>
   );
