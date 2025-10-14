@@ -12,6 +12,7 @@ export const Navigation = () => {
     { name: "Log Scale", path: "/log-scale" },
     { name: "Prediction", path: "/prediction" },
     { name: "Flow Network", path: "/flows" },
+    { name: "Network", path: "/network" },
     { name: "About", path: "/about" },
     { name: "Contact", path: "/contact" },
   ];

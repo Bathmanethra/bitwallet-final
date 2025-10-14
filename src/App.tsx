@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import LogScale from "./pages/LogScale";
 import Prediction from "./pages/Prediction";
 import Flows from "./pages/Flows";
+import Network from "./pages/Network";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/log-scale" element={<LogScale />} />
           <Route path="/prediction" element={<Prediction />} />
           <Route path="/flows" element={<Flows />} />
+          <Route path="/network" element={<Network />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
