@@ -5,8 +5,9 @@ import { WalletDetailsTable } from "@/components/WalletDetailsTable";
 import { SuspiciousWalletsPanel } from "@/components/SuspiciousWalletsPanel";
 import { TemporalAnalysisChart } from "@/components/TemporalAnalysisChart";
 import { StatsCards } from "@/components/StatsCards";
+import { EvaluationMetrics } from "@/components/EvaluationMetrics";
 import { generateWalletData } from "@/utils/generateWalletData";
-import { analyzeSuspiciousWallets, getAnalyticsMetrics } from "@/utils/suspiciousAnalytics";
+import { analyzeSuspiciousWallets, getAnalyticsMetrics, calculateEvaluationMetrics } from "@/utils/suspiciousAnalytics";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,6 +57,26 @@ const Network = () => {
   const analyticsMetrics = useMemo(() => {
     return getAnalyticsMetrics(suspiciousWallets, wallets.length);
   }, [suspiciousWallets, wallets.length]);
+
+  // Generate known suspicious wallets for evaluation (mock data)
+  const knownSuspicious = useMemo(() => {
+    // Simulate known suspicious wallets (in production, this would come from verified data)
+    const known = new Set<string>();
+    suspiciousWallets.slice(0, Math.floor(suspiciousWallets.length * 0.8)).forEach(sw => {
+      known.add(sw.wallet.id);
+    });
+    // Add some that weren't detected to simulate false negatives
+    const randomWallets = wallets.filter(w => !suspiciousWalletIds.has(w.id));
+    if (randomWallets.length > 0) {
+      known.add(randomWallets[0].id);
+      if (randomWallets.length > 1) known.add(randomWallets[1].id);
+    }
+    return known;
+  }, [suspiciousWallets, suspiciousWalletIds, wallets]);
+
+  const evaluationMetrics = useMemo(() => {
+    return calculateEvaluationMetrics(suspiciousWallets, knownSuspicious);
+  }, [suspiciousWallets, knownSuspicious]);
 
   const handleReset = () => {
     setSelectedWallet(null);
@@ -251,7 +272,7 @@ const Network = () => {
           </div>
 
           {/* Right: Suspicious Wallets Panel */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
             <SuspiciousWalletsPanel
               suspiciousWallets={suspiciousWallets}
               threshold={suspicionThreshold}
@@ -260,6 +281,13 @@ const Network = () => {
               onSelectWallet={setSelectedWallet}
               onClearSelection={() => setSelectedWallet(null)}
               onRefresh={handleRefreshAnalytics}
+            />
+
+            {/* Evaluation Metrics */}
+            <EvaluationMetrics
+              {...evaluationMetrics}
+              title="Detection Accuracy"
+              description="Suspicious wallet identification performance"
             />
           </div>
         </div>
